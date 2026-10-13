@@ -1,0 +1,43 @@
+{
+  "name": "use-guarded-action",
+  "version": "0.1.0",
+  "description": "Discard stale async results when a newer call has already superseded them - a drop-in-shaped guard for Next.js Server Actions used with useOptimistic/useTransition, so rapid-fire clicks or slow responses can't overwrite fresher state with stale data.",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "test": "jest"
+  },
+  "keywords": [
+    "react",
+    "nextjs",
+    "server-actions",
+    "race-condition",
+    "useOptimistic",
+    "useTransition",
+    "stale-while-revalidate",
+    "concurrency"
+  ],
+  "license": "MIT",
+  "author": "",
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "@testing-library/react": "^16.0.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "jest": {
+    "testEnvironment": "jsdom"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=16"
+  }
+}

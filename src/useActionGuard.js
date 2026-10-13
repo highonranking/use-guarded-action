@@ -1,4 +1,5 @@
 'use strict';
+'use client';
 
 const { useRef, useCallback, useEffect } = require('react');
 const { createActionGuard } = require('./createActionGuard');

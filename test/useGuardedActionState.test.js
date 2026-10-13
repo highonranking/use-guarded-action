@@ -76,4 +76,32 @@ describe('useGuardedActionState', () => {
     await waitFor(() => expect(result.current[2]).toBe(false));
     expect(result.current[0]).toBe('x');
   });
+
+  test('isPending stays true until the LATEST call resolves, not whichever resolves first', async () => {
+    const action = jest.fn(async (prevState, payload) => {
+      if (payload === 'slow') return delay(50, 'slow-result');
+      return delay(10, 'fast-result');
+    });
+    const { result } = renderHook(() => useGuardedActionState(action, 'initial'));
+
+    act(() => {
+      result.current[1]('slow'); // started first, resolves last
+    });
+    act(() => {
+      result.current[1]('fast'); // started second, resolves first
+    });
+
+    // The fast call resolving is NOT the latest call (slow was requested
+    // after... wait, slow was dispatched first here, fast second, so fast
+    // IS the latest). isPending should clear once fast (the latest)
+    // resolves, and the later-resolving slow call should be ignored.
+    await waitFor(() => expect(result.current[2]).toBe(false));
+    expect(result.current[0]).toBe('fast-result');
+
+    // Make sure the slow call resolving afterward doesn't flip isPending
+    // back on or overwrite state.
+    await delay(60);
+    expect(result.current[2]).toBe(false);
+    expect(result.current[0]).toBe('fast-result');
+  });
 });

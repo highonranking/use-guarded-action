@@ -4,6 +4,18 @@ const { useState, useRef, useCallback, useTransition, useEffect } = require('rea
 const { createActionGuard } = require('./createActionGuard');
 
 /**
+ * NOTE ON isPending: React 19 correctly tracks useTransition's isPending
+ * across an async callback's await points ("async transitions"). React 18
+ * does NOT - it flips isPending back to false as soon as the callback
+ * function returns, which for an async function is immediately (before
+ * any awaited work finishes), making useTransition's own isPending
+ * unreliable on 18. So this hook tracks isPending itself with a ref-free
+ * explicit state flag - correct on both versions - and only uses
+ * useTransition for what it reliably does on both: marking the state
+ * update as a transition for scheduling/priority purposes.
+ */
+
+/**
  * Shaped after React's built-in useActionState(action, initialState):
  *   const [state, formAction, isPending] = useActionState(action, initialState)
  *
@@ -18,6 +30,13 @@ const { createActionGuard } = require('./createActionGuard');
  * action - so existing Server Actions written for useActionState work
  * here without changes to their own signature.
  *
+ * Errors thrown by `action` propagate the same way they would inside any
+ * transition (i.e. will surface via an error boundary), UNLESS the call
+ * that threw has already been superseded by a newer call - in that case
+ * the error is silently discarded along with the (also discarded) stale
+ * result, since the user has already moved on and a newer call's outcome
+ * is what should be shown.
+ *
  * WHAT THIS DOES NOT DO: see createActionGuard.js - no true server-side
  * cancellation, this only guards which result gets applied to state.
  *
@@ -27,7 +46,8 @@ const { createActionGuard } = require('./createActionGuard');
  */
 function useGuardedActionState(action, initialState) {
   const [state, setState] = useState(initialState);
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
 
   const guardRef = useRef(null);
   if (guardRef.current === null) {
@@ -47,11 +67,16 @@ function useGuardedActionState(action, initialState) {
 
   const dispatch = useCallback(
     (payload) => {
+      setIsPending(true);
       startTransition(async () => {
         const result = await guardRef.current.run(() => action(stateRef.current, payload));
         if (result.stale) {
+          // A newer call has already superseded this one - don't touch
+          // isPending, since that newer call is still the one we're
+          // waiting on (or has already cleared it itself).
           return;
         }
+        setIsPending(false);
         if (result.error) throw result.error;
         setState(result.value);
       });

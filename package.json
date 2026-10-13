@@ -3,7 +3,16 @@
   "version": "0.1.0",
   "description": "Discard stale async results when a newer call has already superseded them - a drop-in-shaped guard for Next.js Server Actions used with useOptimistic/useTransition, so rapid-fire clicks or slow responses can't overwrite fresher state with stale data.",
   "main": "src/index.js",
+  "types": "src/index.d.ts",
   "type": "commonjs",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "test": "jest"
   },

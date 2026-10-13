@@ -41,7 +41,28 @@ function createActionGuard() {
    */
   function run(promiseOrFactory) {
     const myToken = ++token;
-    const promise = typeof promiseOrFactory === 'function' ? promiseOrFactory() : promiseOrFactory;
+    let promise;
+    try {
+      promise = typeof promiseOrFactory === 'function' ? promiseOrFactory() : promiseOrFactory;
+    } catch (syncError) {
+      // A factory that throws synchronously (e.g. an action that validates
+      // its input before doing anything async) must still honor the "never
+      // rejects" contract below - without this catch, that throw would
+      // escape run() directly instead of coming back as a result descriptor.
+      //
+      // The staleness check is deferred to a microtask via .then() rather
+      // than computed inline, on purpose: if this call and another run()
+      // call both happen synchronously in the same tick (a common pattern -
+      // see the test for this), the token comparison must happen AFTER all
+      // synchronous code in that tick has run, same as the normal async
+      // path below already does naturally. Computing it inline here would
+      // run too early and could wrongly report `stale: false`.
+      return Promise.resolve().then(() => ({
+        stale: myToken !== token,
+        value: undefined,
+        error: syncError,
+      }));
+    }
 
     return Promise.resolve(promise).then(
       (value) => ({ stale: myToken !== token, value, error: undefined }),

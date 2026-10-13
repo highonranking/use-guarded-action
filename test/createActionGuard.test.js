@@ -114,6 +114,50 @@ describe('createActionGuard', () => {
     expect(guard.getToken()).toBe(2);
   });
 
+  test('a factory that throws synchronously resolves to an error descriptor, not an escaping throw', async () => {
+    const guard = createActionGuard();
+    const syncError = new Error('validation failed before anything async happened');
+    const factory = () => {
+      throw syncError; // no promise ever created - throws immediately
+    };
+
+    // Must not throw - run() promises to always resolve.
+    const result = await guard.run(factory);
+    expect(result.stale).toBe(false);
+    expect(result.error).toBe(syncError);
+    expect(result.value).toBeUndefined();
+  });
+
+  test('a synchronous throw still participates in staleness like any other call', async () => {
+    const guard = createActionGuard();
+    const syncThrowingFactory = () => {
+      throw new Error('old, now-superseded validation error');
+    };
+
+    const staleCall = guard.run(syncThrowingFactory);
+    const freshCall = guard.run(delay(5, 'fresh'));
+
+    const [staleResult, freshResult] = await Promise.all([staleCall, freshCall]);
+    expect(staleResult.stale).toBe(true);
+    expect(freshResult).toEqual({ stale: false, value: 'fresh', error: undefined });
+  });
+
+  test('preserves error identity (e.g. Next.js redirect()/notFound() special errors survive unchanged)', async () => {
+    // Next's redirect()/notFound() work by throwing an error object tagged
+    // with a special `digest` property that Next's own framework code
+    // checks for further up the call stack. A wrapper that clones, wraps,
+    // or re-creates the error instead of passing the SAME object through
+    // would silently break redirect()/notFound() for anyone using this
+    // package. This test simulates that shape and checks object identity.
+    const guard = createActionGuard();
+    const redirectError = new Error('NEXT_REDIRECT');
+    redirectError.digest = 'NEXT_REDIRECT;push;/somewhere;307;';
+
+    const result = await guard.run(Promise.reject(redirectError));
+    expect(result.error).toBe(redirectError); // same object, not a copy
+    expect(result.error.digest).toBe('NEXT_REDIRECT;push;/somewhere;307;');
+  });
+
   test('multiple independent guards do not interfere with each other', async () => {
     const guardA = createActionGuard();
     const guardB = createActionGuard();
